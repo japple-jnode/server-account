@@ -1,0 +1,31 @@
+{
+  "name": "@jnode/server-account",
+  "version": "1.0.0",
+  "description": "Official account system for JNS.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Hello, JNS Accounts.\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/japple-jnode/server-account.git"
+  },
+  "keywords": [
+    "JustNode",
+    "JNS",
+    "JNodeServer",
+    "JustApple",
+    "account",
+    "login"
+  ],
+  "author": "JustApple <apple@justapple.tw>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/japple-jnode/server-account/issues"
+  },
+  "homepage": "https://github.com/japple-jnode/server-account#readme",
+  "dependencies": {
+    "@jnode/db": "^1.0.0",
+    "@jnode/server": "^2.3.3"
+  }
+}
