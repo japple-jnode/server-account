@@ -13,7 +13,7 @@ npm i @jnode/server-account
 ### Import
 
 ```js
-const { AccountManager, routerConstructors: ar, handlerConstructors: ah } = require('@jnode/server-account');
+const { AccountManager, routerConstructors: acr, handlerConstructors: ach } = require('@jnode/server-account');
 const { createServer, routerConstructors: r } = require('@jnode/server');
 ```
 
@@ -23,26 +23,25 @@ const { createServer, routerConstructors: r } = require('@jnode/server');
 const manager = new AccountManager();
 
 const server = createServer(
-  // setup JSON error messages for account operations
-  ar.JSONErrorMessage(
-    r.Path(
-      // fallback for authenticated users
-      ah.Login(manager), // Default at root if needed, or:
-      {
-        '/register': ah.Register(manager),
-        '/login': ah.Login(manager),
-        // protect sensitive routes
-        '/api': ar.AccountTokenVerify(
-          manager,
-          r.Path(null, {
-            '@GET /profile': (ctx) => ctx.identity.account.data(),
-            '@POST /reset-password': ah.ResetPassword(manager)
-          }),
-          401 // fail if not logged in
-        )
-      }
+    // setup JSON error messages for account operations
+    acr.JSONErrorMessage(
+        r.Path(404, {
+            '/api/register': ach.Register(manager),
+            '/api/login': ach.Login(manager),
+            '/api': acr.AccountTokenVerify(
+                manager,
+                r.Path(null, {
+                    '@ GET /data': async (ctx, env) => {
+                        const data = await ctx.identity.account.data();
+                        return h.JSON({ status: 200, id: data.id, account: data.account, displayName: data.displayName, createdAt: data.createdAt.toISOString() }).handle(ctx, env);
+                    },
+                    '@POST /reset-password': ach.ResetPassword(manager),
+                    '@POST /delete-account': ach.DeleteAccount(manager)
+                }),
+                401 // fail if not logged in
+            )
+        })
     )
-  )
 );
 
 server.listen(8080);
