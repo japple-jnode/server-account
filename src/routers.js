@@ -9,6 +9,8 @@ by JustApple
 // dependencies
 const { routerConstructors: r, handlerConstructors: h } = require('@jnode/server');
 const Account = require('./account.js');
+const http = require('http');
+
 
 // token verify router
 class TokenVerifyRouter {
@@ -44,8 +46,8 @@ class JSONErrorMessageRouter {
     }
 
     route(env, ctx) {
-        env.codeHandlers['000'] = function (ctx, env, code) {
-            return h.JSON({ status: code, code: env.error?.code ?? 'UNKNOWN', message: (typeof env.error === 'string') ? env.error : env.error?.message ?? 'Unknown error.' }, { statusCode: code }).handle(ctx, env);
+        env.codeHandlers['000'] = function (ctx, env, code = 500) {
+            return h.JSON({ status: code, code: env.error?.code ?? `HTTP_${code}`, message: (typeof env.error === 'string') ? env.error : env.error?.message ?? http.STATUS_CODES[code] + '.' }, { statusCode: code }).handle(ctx, env);
         };
         return this.next;
     }

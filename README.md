@@ -1,6 +1,6 @@
 # `@jnode/server-account`
 
-Official account system for JNS.
+Official account system for JNS (Node.js). It provides a full-stack solution for user registration, authentication via signed tokens, and account management.
 
 ## Installation
 
@@ -14,34 +14,39 @@ npm i @jnode/server-account
 
 ```js
 const { AccountManager, routerConstructors: acr, handlerConstructors: ach } = require('@jnode/server-account');
-const { createServer, routerConstructors: r } = require('@jnode/server');
+const { createServer, routerConstructors: r, handlerConstructors: h } = require('@jnode/server');
 ```
 
-### Start an account server
+### Start a basic account server
 
 ```js
 const manager = new AccountManager();
 
 const server = createServer(
-    // setup JSON error messages for account operations
-    acr.JSONErrorMessage(
-        r.Path(404, {
-            '/api/register': ach.Register(manager),
-            '/api/login': ach.Login(manager),
-            '/api': acr.AccountTokenVerify(
-                manager,
-                r.Path(null, {
-                    '@ GET /data': async (ctx, env) => {
-                        const data = await ctx.identity.account.data();
-                        return h.JSON({ status: 200, id: data.id, account: data.account, displayName: data.displayName, createdAt: data.createdAt.toISOString() }).handle(ctx, env);
-                    },
-                    '@POST /reset-password': ach.ResetPassword(manager),
-                    '@POST /delete-account': ach.DeleteAccount(manager)
-                }),
-                401 // fail if not logged in
-            )
-        })
-    )
+  // Use JSONErrorMessage to catch errors and return structured JSON
+  acr.JSONErrorMessage(
+    r.Path(404, {
+      '/api/register': ach.Register(manager),
+      '/api/login': ach.Login(manager),
+      // Protect sensitive routes using AccountTokenVerify
+      '/api/user': acr.AccountTokenVerify(
+        manager,
+        r.Path(null, {
+          '@GET /profile': async (ctx, env) => {
+            const data = await ctx.identity.account.data();
+            return h.JSON({ 
+              status: 200, 
+              account: data.account, 
+              displayName: data.displayName 
+            }).handle(ctx, env);
+          },
+          '@POST /reset-password': ach.ResetPassword(manager),
+          '@POST /delete': ach.DeleteAccount(manager)
+        }),
+        401 // Fail handler if not logged in
+      )
+    })
+  )
 );
 
 server.listen(8080);
@@ -49,106 +54,165 @@ server.listen(8080);
 
 ## How it works?
 
-`@jnode/server-account` provides a complete workflow for managing user accounts, authentication tokens, and protected routing in JNS.
+`@jnode/server-account` defines a standardized account protocol:
 
-1. **AccountManager**: Handles the core logic like registration, password hashing (using `scrypt`), and token signing (using `@jnode/auth`).
-2. **Account Routers**: Specifically designed to verify tokens and inject the `Account` instance into `ctx.identity.account`.
-3. **Account Handlers**: Standardized handlers for common tasks like `Login` or `Register` that automatically handle body parsing and cookie setting.
+1. **Manager**: Logic core. Handles password hashing (using `scrypt`) and data persistence.
+2. **Account**: A wrapper class for specific user data access.
+3. **Router**: Middlewares to verify identity. `AccountTokenVerify` injects the `Account` instance into `ctx.identity.account`.
+4. **Handler**: Web controllers that consume JSON requests and interact with the `Manager`.
 
-The system is designed to be extensible; while a default in-memory manager is provided, you can use `AccountManagerDBLE` for persistent storage using `@jnode/db`.
-
-------
+---
 
 # Reference
 
 ## Class: `account.AccountManager`
 
-The core manager for handling account lifecycle and authentication.
+The core manager for handling account lifecycle.
 
 ### `new account.AccountManager([data, options])`
 
-- `data` [\<Map\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map) Initial account data. **Default:** `new Map()`.
+- `data` [\<Map\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map) Account storage. **Default:** `new Map()`.
 - `options` [\<Object\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
-  - `authService` [\<AuthService\>](https://github.com/japple-jnode/auth#class-authauthservice) A custom auth service.
-  - `publicKey` [\<string\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#string_type) RSA public key for tokens.
-  - `privateKey` [\<string\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#string_type) RSA private key for tokens.
-
-If keys are not provided and no `authService` is passed, a new 2048-bit RSA key pair will be generated automatically.
+  - `authService` [\<AuthService\>](https://github.com/japple-jnode/auth) Custom auth service.
+  - `publicKey` / `privateKey` [\<string\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#string_type) RSA keys for tokens.
 
 ### `manager.register(account, email, password, displayName)`
 
-- Returns: [\<account.Account\>](#class-accountaccount)
-
-Registers a new user. Performs validation on formats and password strength. Throws errors with codes like `ACC_CONFLICT` or `PW_TOO_WEAK`.
+Registers a user. Performs strict format validation (see [Validation Rules](#validation-rules)).
 
 ### `manager.login(account, password)`
 
-- `account` [\<string\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#string_type) Account name or email.
-- Returns: [\<account.Account\>](#class-accountaccount)
-
-Verifies credentials. Throws `ACC_NOT_FOUND` or `PW_INCORRECT` on failure.
+Verifies credentials. `account` can be the username or email.
 
 ### `manager.resetAccountPassword(id, password)`
 
-- `id` [\<string\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#string_type) Internal account ID.
-- `password` [\<string\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#string_type) New password.
-
-Updates the password and sets `securityReset` to the current time, which invalidates old tokens.
-
-### `manager.signToken(header, payload)`
-
-Signs a token using the internal `AuthService`.
+Updates password and sets `securityReset` to now, invalidating all old tokens.
 
 ## Class: `account.Account`
-
-Represents a specific account instance.
 
 ### `account.data()`
 
 - Returns: [\<Promise\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) | [\<Object\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
+  - `id`, `account`, `email`, `displayName`, `createdAt`, `permissions`, `securityReset`.
 
-Returns the raw data of the account, including `id`, `account`, `email`, `displayName`, `createdAt`, and `permissions`.
+---
 
-## Built-in routers
+## Web API Format (Built-in Handlers)
 
-### Router: `TokenVerify(service, pass, fail[, by])`
+The following handlers expect **JSON** input and return **JSON** output.
 
-- `service` [\<AuthService\>](https://github.com/japple-jnode/auth#class-authauthservice) The auth service to use.
-- `pass` [router-extended] Target if token is valid.
-- `fail` [router-extended] Target if token is invalid or missing.
-- `by` [\<string\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#string_type) | [\<Function\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function) How to extract the token. **Default:** extracts from `Authorization` header.
+### Validation Rules
 
-### Router: `JSONErrorMessage(next)`
+For `Register` and `ResetPassword` handlers:
 
-Wraps the routing process to provide standardized JSON error responses for status codes. When a numeric error is thrown (e.g., `400`), it returns:
-`{ "status": 400, "code": "ERR_CODE", "message": "..." }`.
-
-### Router: `AccountTokenVerify(manager, pass, fail)`
-
-Specific version of `TokenVerify` that:
-
-1. Looks for the `jnsat` cookie.
-2. Injects an `Account` instance into `ctx.identity.account`.
-3. Validates if the token was created before a password reset.
-
-## Built-in handlers
+- **account**: 4-32 characters, alphanumeric (`\w`).
+- **email**: Standard email regex.
+- **password**: 8-64 characters, must include:
+  - Uppercase & Lowercase letters.
+  - Numbers.
+  - Symbols (`!@#$%^&*` etc.).
+- **displayName**: 2-32 characters, sanitized (no control codes).
 
 ### Handler: `Register(manager[, options])`
 
-Handles `POST` requests containing JSON: `{ "account", "email", "password", "displayName" }`. On success, sets the `jnsat` cookie.
+- **Request Method**: `POST` (usually)
+- **Request Body**:
+
+  ```json
+  {
+    "account": "username",
+    "email": "user@example.com",
+    "password": "SecurePassword123!",
+    "displayName": "My Name"
+  }
+  ```
+
+- **Success Response**: `200 OK`
+
+  ```json
+  {
+    "status": 200,
+    "id": "username",
+    "account": "username",
+    "displayName": "My Name",
+    "createdAt": "2023-10-27T..."
+  }
+  ```
+
+- **Cookie**: Sets `jnsat` (HttpOnly).
 
 ### Handler: `Login(manager[, options])`
 
-Handles `POST` requests containing JSON: `{ "account", "password" }`. On success, sets the `jnsat` cookie.
+- **Request Body**:
 
-- `options` [\<Object\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
-  - `cookieDuration` [\<number\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#number_type) Token lifetime in seconds. **Default:** `604800` (7 days).
-  - `cookieOptions` [\<Object\>](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) Additional cookie attributes (e.g., `Secure`, `Domain`).
+  ```json
+  {
+    "account": "username_or_email",
+    "password": "SecurePassword123!"
+  }
+  ```
+
+- **Success Response**: Same as `Register`.
+- **Cookie**: Sets `jnsat` (HttpOnly).
 
 ### Handler: `ResetPassword(manager[, options])`
 
-Handles password changes. Requires `ctx.identity.account` to be set (typically by using `AccountTokenVerify` before this handler). Expects JSON: `{ "id", "oldPassword", "newPassword" }`.
+*Requires authentication via `AccountTokenVerify`.*
 
-### Handler: `DeleteAccount(manager[, options])`
+- **Request Body**:
 
-Deletes the account. Expects JSON: `{ "id", "password" }`. Requires authentication.
+  ```json
+  {
+    "id": "current_user_id",
+    "oldPassword": "CurrentPassword123!",
+    "newPassword": "NewSecurePassword456!"
+  }
+  ```
+
+- **Success Response**: `{"status": 200}`.
+- **Cookie**: Refreshes `jnsat` with a new `cre` (creation) timestamp.
+
+### Handler: `DeleteAccount(manager)`
+
+*Requires authentication via `AccountTokenVerify`.*
+
+- **Request Body**:
+
+  ```json
+  {
+    "id": "current_user_id",
+    "password": "CurrentPassword123!"
+  }
+  ```
+
+- **Success Response**: `{"status": 200}`.
+
+---
+
+## Built-in routers
+
+### Router: `AccountTokenVerify(manager, pass, fail)`
+
+Verifies the `jnsat` cookie.
+
+- If **Pass**: Sets `ctx.identity.account` and `ctx.identity.token`.
+- If **Fail**: Calls `fail` handler (e.g., `401`).
+- **Security**: Automatically rejects tokens issued before the account's last `securityReset`.
+
+### Router: `JSONErrorMessage(next)`
+
+Catches errors thrown during routing/handling.
+
+- **Format**:
+
+  ```json
+  {
+    "status": 401,
+    "code": "ACC_NOT_FOUND",
+    "message": "Account not found."
+  }
+  ```
+
+### Router: `TokenVerify(service, pass, fail[, by])`
+
+Generic token verifier. `by` can be a function to extract tokens from headers or other sources.

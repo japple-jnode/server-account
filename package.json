@@ -1,6 +1,6 @@
 {
   "name": "@jnode/server-account",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Official account system for JNS.",
   "main": "src/index.js",
   "exports": {
