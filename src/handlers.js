@@ -150,6 +150,27 @@ class DeleteAccountHandler {
     }
 }
 
+// log out handler
+class LogoutHandler {
+    constructor(manager, options = {}) {
+        this.manager = manager;
+        this.cookieOptions = options.cookieOptions;
+    }
+
+    async handle(ctx, env) {
+        try {
+            ctx.setCookie('jnsat', '', {
+                'HttpOnly': true,
+                ...this.cookieOptions,
+                'Max-Age': 0
+            });
+            return h.JSON({ status: 200 }).handle(ctx, env);
+        } catch (e) {
+            throw e;
+        }
+    }
+}
+
 // error
 function _Error(message, code, status = 500) {
     const err = new Error(message);
@@ -160,11 +181,12 @@ function _Error(message, code, status = 500) {
 
 // export
 module.exports = {
-    RegisterHandler, LoginHandler, ResetPasswordHandler, DeleteAccountHandler,
+    RegisterHandler, LoginHandler, ResetPasswordHandler, DeleteAccountHandler, LogoutHandler,
     handlerConstructors: {
         Register: (manager, options) => new RegisterHandler(manager, options),
         Login: (manager, options) => new LoginHandler(manager, options),
         ResetPassword: (manager, options) => new ResetPasswordHandler(manager, options),
-        DeleteAccount: (manager, options) => new DeleteAccountHandler(manager, options)
+        DeleteAccount: (manager, options) => new DeleteAccountHandler(manager, options),
+        Logout: (manager, options) => new LogoutHandler(manager, options),
     }
 };
