@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "Official account system for JNS.",
   "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./handlers": "./src/handlers.js",
+    "./routers": "./src/routers.js"
+  },
   "scripts": {
     "test": "echo \"Hello, JNS Accounts.\""
   },
@@ -25,7 +30,8 @@
   },
   "homepage": "https://github.com/japple-jnode/server-account#readme",
   "dependencies": {
-    "@jnode/db": "^1.0.0",
-    "@jnode/server": "^2.3.3"
+    "@jnode/db": "^1.1.0",
+    "@jnode/server": "^2.3.12",
+    "@jnode/auth": "^1.0.0"
   }
 }
