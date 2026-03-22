@@ -62,8 +62,12 @@ class PermissionManager {
         if (typeof permission === 'number') index = permission;
         else index = this.bindings[permission];
 
+        if (typeof index !== 'number') return buf;
+
         const atByte = offset + Math.floor(index / 8);
         const atBit = index % 8;
+
+        if (atByte >= buf.length) return buf;
 
         buf[atByte] |= (1 << atBit);
         return buf;
@@ -74,8 +78,12 @@ class PermissionManager {
         if (typeof permission === 'number') index = permission;
         else index = this.bindings[permission];
 
+        if (typeof index !== 'number') return buf;
+
         const atByte = offset + Math.floor(index / 8);
         const atBit = index % 8;
+
+        if (atByte >= buf.length) return buf;
 
         buf[atByte] &= ~(1 << atBit);
 
@@ -92,7 +100,7 @@ class PermissionManager {
 
     fromSet(set = new Set(), buf = Buffer.alloc(this.length), offset = 0) {
         for (let i of set) {
-            if (this.bindings[i]) this.set(buf, i, offset);
+            if (typeof this.bindings[i] === 'number') this.set(buf, i, offset);
         }
         return buf;
     }
@@ -261,9 +269,11 @@ class AccountManagerDBLE {
         let line;
         if (account.includes('@')) { // email
             account = account.trim().toLowerCase();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(account)) throw _Error('Bad account format.', 'ACC_BAD_FORMAT', 400);
             line = await this.db.getLineByField('email', account);
         } else { // account
-            line = await this.db.getLineByField('account', account);
+            if (!/^\w{4,32}$/.test(account)) throw _Error('Bad account format.', 'ACC_BAD_FORMAT', 400);
+            line = await this.db.getLineByField('account', account.toLowerCase());
         }
 
         if (line === undefined) throw _Error('Account not found.', 'ACC_NOT_FOUND', 401);

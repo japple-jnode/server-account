@@ -72,6 +72,7 @@ class AccountTokenVerifyRouter extends TokenVerifyRouter {
             if (now > result.payload.exp) throw _Error('Token expires.', 'TOK_EXP', 401);
 
             const data = await account.data();
+            if (!data) throw _Error('Account not found.', 'ACC_NOT_FOUND', 401);
             if (data.securityReset.getTime() > result.payload.cre) throw _Error('Token expires due to reset.', 'TOK_EXP_RESET', 401);
 
             ctx.identity.token = result;
